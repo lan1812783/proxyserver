@@ -82,8 +82,10 @@ public class Socks5 implements SocksImpl {
         (byte) 1,
         (clientSocket) -> {
           byte[] address = new byte[4];
-          for (int i = 0; i < address.length; i++) {
-            address[i] = Util.readByte(clientSocket);
+          int len = clientSocket.getInputStream().read(address);
+          if (len != address.length) {
+            logger.debugf("Failed to read destination address octets");
+            return null;
           }
           return address;
         });
@@ -133,7 +135,14 @@ public class Socks5 implements SocksImpl {
 
   private static enum ReplyCode {
     SUCCESS((byte) 0),
-    GENERAL_FAILURE((byte) 1);
+    GENERAL_FAILURE((byte) 1),
+    CONNECTION_DISALLOWED((byte) 2),
+    NETWORK_UNREACHABLE((byte) 3),
+    HOST_UNREACHABLE((byte) 4),
+    CONNECTION_REFUSED((byte) 5),
+    TTL_EXPIRED((byte) 6),
+    UNSUPPORTED_COMMAND((byte) 7),
+    UNSUPPORTED_ADDRESS_TYPE((byte) 8);
 
     private final byte code;
 
@@ -182,9 +191,10 @@ public class Socks5 implements SocksImpl {
       return false;
     }
 
-    if (!processRequest()) {
+    ReplyCode replyCode = processRequest();
+    if (replyCode != ReplyCode.SUCCESS) {
       logger.debug("Process request failed");
-      reply(ReplyCode.GENERAL_FAILURE);
+      reply(replyCode);
       return false;
     }
 
@@ -226,11 +236,11 @@ public class Socks5 implements SocksImpl {
     return authMethod.doAuth(clientSocket);
   }
 
-  public boolean processRequest() throws IOException {
+  public ReplyCode processRequest() throws IOException {
     // byte[] buf = new byte[128];
     // int len = clientSocket.getInputStream().read(buf);
     // logger.debugf("Buf: %s, len: %d", Util.ToHexString(buf, ":"), len);
-    // return false;
+    // return ReplyCode.GENERAL_FAILURE;
 
     Util.readByte(clientSocket); // TODO: why redundant byte here (because of NO_AUTH ???)
 
@@ -238,41 +248,43 @@ public class Socks5 implements SocksImpl {
     SocksVersion socksVersion = SocksVersion.Get(versionNumber);
     if (socksVersion == null) {
       logger.debugf("Unsupported socks version %02x", versionNumber);
-      return false;
+      return ReplyCode.GENERAL_FAILURE;
     }
 
     byte commandCode = Util.readByte(clientSocket);
     command = Command.Get(commandCode);
     if (command == null) {
       logger.debugf("Unsupported command code %02x", commandCode);
-      return false;
+      return ReplyCode.UNSUPPORTED_COMMAND;
     }
 
     byte reservedByte = Util.readByte(clientSocket);
     if (reservedByte != RESERVED_BYTE) {
       logger.debugf(
           "Wrong reseved byte, expected %02x, received %02x", RESERVED_BYTE, reservedByte);
-      return false;
+      return ReplyCode.GENERAL_FAILURE;
     }
 
     byte addrType = Util.readByte(clientSocket);
     destAddressType = AddressType.Get(addrType);
     if (destAddressType == null) {
       logger.debugf("Unsupported address type %02x", addrType);
-      return false;
+      return ReplyCode.UNSUPPORTED_ADDRESS_TYPE;
     }
     destAddressOctets = destAddressType.read(clientSocket);
 
     destPortOctets = new byte[2];
-    for (int i = 0; i < destPortOctets.length; i++) {
-      destPortOctets[i] = Util.readByte(clientSocket);
+    int len = clientSocket.getInputStream().read(destPortOctets);
+    if (len != destPortOctets.length) {
+      logger.debugf("Failed to read destination port octets");
+      return ReplyCode.GENERAL_FAILURE;
     }
 
-    return true;
+    return ReplyCode.SUCCESS;
   }
 
   private boolean executeConnectCommand() {
-    InetAddress destInetAddress = Util.getInetAdress(destAddressOctets);
+    InetAddress destInetAddress = Util.getV4InetAdress(destAddressOctets);
     int destPort = Util.getPort(destPortOctets);
     if (destInetAddress == null || destPort < 0) {
       reply(ReplyCode.GENERAL_FAILURE);
@@ -289,6 +301,7 @@ public class Socks5 implements SocksImpl {
 
     try {
       destSocket = new Socket(destInetAddress, destPort);
+      destSocket.setSoTimeout(5000);
     } catch (IOException e) {
       logger.error(e.getMessage(), e);
       reply(ReplyCode.GENERAL_FAILURE);
@@ -296,6 +309,7 @@ public class Socks5 implements SocksImpl {
     }
 
     if (!reply(ReplyCode.SUCCESS)) {
+      cleanup();
       return false;
     }
 
@@ -306,7 +320,6 @@ public class Socks5 implements SocksImpl {
     } catch (IOException e) {
       cleanup();
       logger.error(e.getMessage(), e);
-      return false;
     }
 
     cleanup();
@@ -318,7 +331,7 @@ public class Socks5 implements SocksImpl {
     byte[] response = new byte[6 + serverAddressOctets.length];
     response[0] = SocksVersion.SOCKS5.get();
     response[1] = replyCode.get();
-    response[2] = (byte) 0;
+    response[2] = RESERVED_BYTE;
     response[3] = serverAddressType.get();
 
     for (int i = 0; i < serverAddressOctets.length; i++) {

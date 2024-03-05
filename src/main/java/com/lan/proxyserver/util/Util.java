@@ -21,8 +21,8 @@ public class Util {
     return sb.toString();
   }
 
-  public static InetAddress getInetAdress(byte[] octets) {
-    if (octets.length != 4) {
+  public static InetAddress getV4InetAdress(byte[] octets) {
+    if (octets == null || octets.length != 4) {
       return null;
     }
     try {
@@ -33,7 +33,7 @@ public class Util {
   }
 
   public static int getPort(byte[] octets) {
-    if (octets.length != 2) {
+    if (octets == null || octets.length != 2) {
       return -1;
     }
     return (octets[0] & 0xFF) << 8 | (octets[1] & 0xFF);
@@ -41,7 +41,7 @@ public class Util {
 
   public static void byte2hex(byte b, StringBuffer buf) {
     char[] hexChars = {
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
     };
     int high = ((b & 0xf0) >> 4);
     int low = (b & 0x0f);
