@@ -2,10 +2,10 @@ package com.lan.proxyserver.proxy.socks;
 
 import com.lan.proxyserver.util.Util;
 import java.io.IOException;
-import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -14,150 +14,10 @@ import org.jboss.logging.Logger;
 public class Socks5 implements SocksImpl {
   private static final byte RESERVED_BYTE = 0;
   private static final Logger logger = Logger.getLogger(Socks5.class);
-
-  private static enum AuthMethod {
-    // Listed in priority
-    NO_AUTH(
-        (byte) 0,
-        (clientSocket) -> {
-          return true;
-        });
-
-    private final byte authMethod;
-    private final byte[] response;
-
-    private static interface IAuthenticator {
-      public boolean doAuth(Socket clientSocket);
-    }
-
-    private final IAuthenticator authenticator;
-
-    AuthMethod(byte authMethod, IAuthenticator authenticator) {
-      this.authMethod = authMethod;
-      response = new byte[] { SocksVersion.SOCKS5.get(), authMethod };
-      this.authenticator = authenticator;
-    }
-
-    public static AuthMethod Get(byte authMethod) {
-      for (AuthMethod m : AuthMethod.values()) {
-        if (m.authMethod == authMethod) {
-          return m;
-        }
-      }
-      return null;
-    }
-
-    public byte[] getResponse() {
-      return response;
-    }
-
-    public boolean doAuth(Socket clientSocket) {
-      return authenticator.doAuth(clientSocket);
-    }
-  }
-
-  private static enum Command {
-    CONNECT((byte) 1);
-    // BIND((byte) 2),
-    // UDP_ASSOCIATE((byte) 3);
-
-    private final byte commandCode;
-
-    Command(byte commandCode) {
-      this.commandCode = commandCode;
-    }
-
-    public static Command Get(byte commandCode) {
-      for (Command c : Command.values()) {
-        if (c.commandCode == commandCode) {
-          return c;
-        }
-      }
-      return null;
-    }
-  }
-
-  private static enum AddressType {
-    IP_V4(
-        (byte) 1,
-        (clientSocket) -> {
-          byte[] address = new byte[4];
-          int len = clientSocket.getInputStream().read(address);
-          if (len != address.length) {
-            logger.debugf("Failed to read destination address octets");
-            return null;
-          }
-          return address;
-        });
-    // DOMAINNAME((byte) 3, (clientSocket) -> null),
-    // IP_V6((byte) 4, (clientSocket) -> new byte[16]);
-
-    private final byte type;
-    private final IAddressReader addressReader;
-
-    private static interface IAddressReader {
-      public byte[] read(Socket clientSocket) throws IOException;
-    }
-
-    AddressType(byte type, IAddressReader addressReader) {
-      this.type = type;
-      this.addressReader = addressReader;
-    }
-
-    public static AddressType Get(byte type) {
-      for (AddressType at : AddressType.values()) {
-        if (at.type == type) {
-          return at;
-        }
-      }
-      return null;
-    }
-
-    public static AddressType Get(ServerSocket serverSocket) {
-      InetAddress inetAddress = serverSocket.getInetAddress();
-      if (inetAddress instanceof Inet4Address) {
-        return AddressType.IP_V4;
-      }
-      // if (inetAddress instanceof Inet6Address) {
-      // return AddressType.IP_V6;
-      // }
-      return null;
-    }
-
-    public byte get() {
-      return type;
-    }
-
-    public byte[] read(Socket clientSocket) throws IOException {
-      return addressReader.read(clientSocket);
-    }
-  }
-
-  private static enum ReplyCode {
-    SUCCESS((byte) 0),
-    GENERAL_FAILURE((byte) 1),
-    CONNECTION_DISALLOWED((byte) 2),
-    NETWORK_UNREACHABLE((byte) 3),
-    HOST_UNREACHABLE((byte) 4),
-    CONNECTION_REFUSED((byte) 5),
-    TTL_EXPIRED((byte) 6),
-    UNSUPPORTED_COMMAND((byte) 7),
-    UNSUPPORTED_ADDRESS_TYPE((byte) 8);
-
-    private final byte code;
-
-    ReplyCode(byte code) {
-      this.code = code;
-    }
-
-    public byte get() {
-      return code;
-    }
-  }
-
   private static final byte[] NoSuppoertedMethodsResponse = {
       SocksVersion.SOCKS5.get(), (byte) 0xFF
   };
+
   private final AddressType serverAddressType;
   private final byte[] serverAddressOctets;
   private final byte[] serverPortOctets;
@@ -301,8 +161,25 @@ public class Socks5 implements SocksImpl {
 
     try {
       destSocket = new Socket(destInetAddress, destPort);
-      destSocket.setSoTimeout(5000);
+    } catch (SocketException e) {
+      logger.error(e.getMessage(), e);
+      String msg = e.getMessage();
+      if (msg != null && msg.startsWith("Network is unreachable")) {
+        reply(ReplyCode.NETWORK_UNREACHABLE);
+      } else {
+        reply(ReplyCode.HOST_UNREACHABLE);
+      }
+      return false;
     } catch (IOException e) {
+      logger.error(e.getMessage(), e);
+      reply(ReplyCode.HOST_UNREACHABLE);
+      return false;
+    }
+
+    try {
+      destSocket.setSoTimeout(5000);
+    } catch (SocketException e) {
+      cleanup();
       logger.error(e.getMessage(), e);
       reply(ReplyCode.GENERAL_FAILURE);
       return false;
