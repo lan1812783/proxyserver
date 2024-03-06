@@ -28,13 +28,13 @@ public enum AddressType {
   }
 
   private final byte type;
-  private final IAddressReader addressReader;
+  private final AddressReader addressReader;
 
-  private static interface IAddressReader {
+  private static interface AddressReader {
     public byte[] read(Socket clientSocket) throws IOException;
   }
 
-  AddressType(byte type, IAddressReader addressReader) {
+  AddressType(byte type, AddressReader addressReader) {
     this.type = type;
     this.addressReader = addressReader;
   }

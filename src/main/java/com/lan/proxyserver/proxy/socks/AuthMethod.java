@@ -13,15 +13,15 @@ public enum AuthMethod {
   private final byte authMethod;
   private final byte[] response;
 
-  private static interface IAuthenticator {
+  private static interface Authenticator {
     public boolean doAuth(Socket clientSocket);
   }
 
-  private final IAuthenticator authenticator;
+  private final Authenticator authenticator;
 
-  AuthMethod(byte authMethod, IAuthenticator authenticator) {
+  AuthMethod(byte authMethod, Authenticator authenticator) {
     this.authMethod = authMethod;
-    response = new byte[] { SocksVersion.SOCKS5.get(), authMethod };
+    response = new byte[] {SocksVersion.SOCKS5.get(), authMethod};
     this.authenticator = authenticator;
   }
 

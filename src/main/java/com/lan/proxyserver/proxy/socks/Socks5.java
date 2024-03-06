@@ -1,13 +1,13 @@
 package com.lan.proxyserver.proxy.socks;
 
+import com.lan.proxyserver.proxy.socks.command.Command;
+import com.lan.proxyserver.proxy.socks.command.CommandConstructionResult;
+import com.lan.proxyserver.proxy.socks.command.CommandImpl;
 import com.lan.proxyserver.util.Util;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.jboss.logging.Logger;
 
@@ -26,7 +26,6 @@ public class Socks5 implements SocksImpl {
   private AddressType destAddressType;
   private byte[] destAddressOctets;
   private byte[] destPortOctets;
-  private Socket destSocket;
 
   Socks5(ServerSocket serverSocket, Socket clientSocket) {
     serverAddressType = AddressType.Get(serverSocket);
@@ -58,17 +57,18 @@ public class Socks5 implements SocksImpl {
       return false;
     }
 
-    boolean commandExecSuccess = false;
-    switch (command) {
-      case CONNECT:
-        commandExecSuccess = executeConnectCommand();
+    CommandConstructionResult res = command.build(clientSocket, destAddressOctets, destPortOctets);
+    try (CommandImpl commandImpl = res.commandImpl) {
+      if (!reply(res.replyCode)) {
+        return false;
+      }
+      commandImpl.execute();
+    } catch (Exception e) {
+      // Never happends
+      logger.error(e.getMessage(), e);
     }
 
-    if (!commandExecSuccess) {
-      logger.debugf("Execute command %s failed", command);
-    }
-
-    return commandExecSuccess;
+    return true;
   }
 
   public boolean doAuth() throws IOException {
@@ -140,68 +140,9 @@ public class Socks5 implements SocksImpl {
       return ReplyCode.GENERAL_FAILURE;
     }
 
+    logger.infof("Server receives %s command", command);
+
     return ReplyCode.SUCCESS;
-  }
-
-  private boolean executeConnectCommand() {
-    InetAddress destInetAddress = Util.getV4InetAdress(destAddressOctets);
-    int destPort = Util.getPort(destPortOctets);
-    if (destInetAddress == null || destPort < 0) {
-      reply(ReplyCode.GENERAL_FAILURE);
-      logger.debugf(
-          "Failed to get destination inet address from these octets: %s, and/or destination port"
-              + " from these octets: %s",
-          Util.toHexString(destAddressOctets, ":"), Util.toHexString(destPortOctets, ":"));
-      return false;
-    }
-
-    logger.infof(
-        "Execute %s command with destination inet address: %s, and destination port: %d",
-        Command.CONNECT, destInetAddress, destPort);
-
-    try {
-      destSocket = new Socket(destInetAddress, destPort);
-    } catch (SocketException e) {
-      logger.error(e.getMessage(), e);
-      String msg = e.getMessage();
-      if (msg != null && msg.startsWith("Network is unreachable")) {
-        reply(ReplyCode.NETWORK_UNREACHABLE);
-      } else {
-        reply(ReplyCode.HOST_UNREACHABLE);
-      }
-      return false;
-    } catch (IOException e) {
-      logger.error(e.getMessage(), e);
-      reply(ReplyCode.HOST_UNREACHABLE);
-      return false;
-    }
-
-    try {
-      destSocket.setSoTimeout(5000);
-    } catch (SocketException e) {
-      cleanup();
-      logger.error(e.getMessage(), e);
-      reply(ReplyCode.GENERAL_FAILURE);
-      return false;
-    }
-
-    if (!reply(ReplyCode.SUCCESS)) {
-      cleanup();
-      return false;
-    }
-
-    try {
-      while (forwardAndBackward()) {
-        Thread.yield();
-      }
-    } catch (IOException e) {
-      cleanup();
-      logger.error(e.getMessage(), e);
-    }
-
-    cleanup();
-
-    return true;
   }
 
   private boolean reply(ReplyCode replyCode) {
@@ -227,50 +168,5 @@ public class Socks5 implements SocksImpl {
     }
 
     return true;
-  }
-
-  private boolean forwardAndBackward() throws IOException {
-    byte[] payload = new byte[4096];
-
-    int len = clientSocket.getInputStream().read(payload);
-    if (len < 0) {
-      logger.debugf("Read %d byte(s) from client", len);
-      return false;
-    }
-    logger.debugf(
-        "Read %d byte(s) from client, payload: %s",
-        len, Util.toHexString(Arrays.copyOf(payload, len), ":"));
-
-    destSocket.getOutputStream().write(payload, 0, len);
-    destSocket.getOutputStream().flush();
-    logger.debugf(
-        "Write %d byte(s) to destination, payload: %s",
-        len, Util.toHexString(Arrays.copyOf(payload, len), ":"));
-
-    len = destSocket.getInputStream().read(payload);
-    if (len < 0) {
-      logger.debugf("Read %d byte(s) from destination", len);
-      return false;
-    }
-    logger.debugf(
-        "Read %d byte(s) from destination, payload: %s",
-        len, Util.toHexString(Arrays.copyOf(payload, len), ":"));
-
-    clientSocket.getOutputStream().write(payload, 0, len);
-    clientSocket.getOutputStream().flush();
-    logger.debugf(
-        "Write %d byte(s) to client, payload: %s",
-        len, Util.toHexString(Arrays.copyOf(payload, len), ":"));
-
-    return true;
-  }
-
-  private void cleanup() {
-    try {
-      destSocket.close();
-      logger.infof("Close destination socket %s", destSocket);
-    } catch (IOException e) {
-      logger.error(e.getMessage(), e);
-    }
   }
 }

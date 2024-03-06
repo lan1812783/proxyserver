@@ -11,7 +11,7 @@ public class ProxyServerThread extends Thread {
   private SocksServer socksServer;
 
   public ProxyServerThread() {
-    port = 9003;
+    port = 1080;
     try {
       socksServer = new SocksServer(port);
     } catch (IOException e) {
