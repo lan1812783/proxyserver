@@ -1,7 +1,14 @@
 package com.lan.proxyserver.proxy.socks.command;
 
-public abstract class CommandImpl implements AutoCloseable {
-  public abstract void execute();
+public interface CommandImpl extends AutoCloseable {
+  public void execute();
+
+  /**
+   * The purpose of overriding {@link AutoCloseable#close()} method is for it to not throw {@link
+   * Exception}
+   */
+  @Override
+  public void close();
 
   public static CommandImpl noOpCommand =
       new CommandImpl() {
@@ -9,6 +16,6 @@ public abstract class CommandImpl implements AutoCloseable {
         public void execute() {}
 
         @Override
-        public void close() throws Exception {}
+        public void close() {}
       };
 }

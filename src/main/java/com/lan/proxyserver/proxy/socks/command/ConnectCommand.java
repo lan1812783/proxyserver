@@ -9,7 +9,7 @@ import java.net.SocketException;
 import java.util.Arrays;
 import org.jboss.logging.Logger;
 
-public class ConnectCommand extends CommandImpl {
+public class ConnectCommand implements CommandImpl {
   private static final Logger logger = Logger.getLogger(ConnectCommand.class);
 
   private final Socket clientSocket;
@@ -114,7 +114,7 @@ public class ConnectCommand extends CommandImpl {
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() {
     try {
       destSocket.close();
       logger.infof("Close destination socket %s", destSocket);

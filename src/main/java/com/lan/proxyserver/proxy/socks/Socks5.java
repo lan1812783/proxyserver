@@ -15,7 +15,7 @@ public class Socks5 implements SocksImpl {
   private static final byte RESERVED_BYTE = 0;
   private static final Logger logger = Logger.getLogger(Socks5.class);
   private static final byte[] NoSuppoertedMethodsResponse = {
-      SocksVersion.SOCKS5.get(), (byte) 0xFF
+    SocksVersion.SOCKS5.get(), (byte) 0xFF
   };
 
   private final AddressType serverAddressType;
@@ -63,9 +63,6 @@ public class Socks5 implements SocksImpl {
         return false;
       }
       commandImpl.execute();
-    } catch (Exception e) {
-      // Never happends
-      logger.error(e.getMessage(), e);
     }
 
     return true;
@@ -162,6 +159,7 @@ public class Socks5 implements SocksImpl {
 
     try {
       clientSocket.getOutputStream().write(response);
+      logger.infof("Server replies %s to client", replyCode);
     } catch (IOException e) {
       logger.error(e.getMessage(), e);
       return false;
