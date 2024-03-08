@@ -48,7 +48,7 @@ public class SocksServer implements Runnable {
   private void terminatePool() {
     long timeout = 10;
     TimeUnit unit = TimeUnit.SECONDS;
-    logger.infof("Wait for client connection handler pool to shutdown", timeout, unit.toString());
+    logger.info("Wait for client connection handler pool to shutdown");
     boolean terminated = Util.shutdownAndAwaitTermination(pool, timeout, unit);
     if (!terminated) {
       logger.infof(

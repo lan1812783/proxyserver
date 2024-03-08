@@ -68,8 +68,9 @@ public class ConnectCommand implements CommandImpl {
 
   @Override
   public void execute() {
+    byte[] payload = new byte[4096];
     try {
-      while (forwardAndBackward()) {
+      while (forwardAndBackward(payload)) {
         Thread.yield();
       }
     } catch (IOException e) {
@@ -77,9 +78,7 @@ public class ConnectCommand implements CommandImpl {
     }
   }
 
-  private boolean forwardAndBackward() throws IOException {
-    byte[] payload = new byte[4096];
-
+  private boolean forwardAndBackward(byte[] payload) throws IOException {
     int len = clientSocket.getInputStream().read(payload);
     if (len < 0) {
       logger.debugf("Read %d byte(s) from client", len);

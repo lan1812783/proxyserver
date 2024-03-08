@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -13,10 +12,42 @@ public class Util {
     return (byte) socket.getInputStream().read();
   }
 
-  public static String join(List<Byte> bytes, String delimeter) {
+  public static class UndesirableReadException extends IOException {
+    public UndesirableReadException(int nbytes, int len) {
+      super(
+          String.format("Expected to read %d byte(s), but actually read %d byte(s)", nbytes, len));
+    }
+  }
+
+  public static int readNBytesAsInt(Socket socket, int nbytes) throws IOException {
+    if (nbytes <= 0 || nbytes >= 5) {
+      throw new IllegalArgumentException();
+    }
+    byte[] octets = new byte[nbytes];
+    int len = socket.getInputStream().read(octets);
+    if (len != nbytes) {
+      throw new UndesirableReadException(nbytes, len);
+    }
+    int res = 0;
+    for (int i = 0; i < nbytes; i++) {
+      res |= (octets[i] & 0xFF) << (nbytes - 1 - i);
+    }
+    return res;
+  }
+
+  public static byte[] readExactlyNBytes(Socket socket, int nbytes) throws IOException {
+    byte[] payload = new byte[nbytes];
+    int len = socket.getInputStream().read(payload);
+    if (len != nbytes) {
+      throw new UndesirableReadException(nbytes, len);
+    }
+    return payload;
+  }
+
+  public static String join(byte[] bytes, String delimeter) {
     StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < bytes.size(); i++) {
-      sb.append(Byte.toString(bytes.get(i)) + (i < bytes.size() - 1 ? delimeter : ""));
+    for (int i = 0; i < bytes.length; i++) {
+      sb.append(Byte.toString(bytes[i]) + (i < bytes.length - 1 ? delimeter : ""));
     }
     return sb.toString();
   }

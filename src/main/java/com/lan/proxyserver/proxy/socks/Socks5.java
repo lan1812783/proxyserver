@@ -7,8 +7,6 @@ import com.lan.proxyserver.util.Util;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
 import org.jboss.logging.Logger;
 
 public class Socks5 implements SocksImpl {
@@ -69,12 +67,10 @@ public class Socks5 implements SocksImpl {
   }
 
   public boolean doAuth() throws IOException {
-    byte nauth = Util.readByte(clientSocket);
+    byte nmethods = Util.readByte(clientSocket);
+    byte[] clientAuthMethods = Util.readExactlyNBytes(clientSocket, nmethods);
     AuthMethod authMethod = null;
-    List<Byte> clientAuthMethods = new ArrayList<>(nauth);
-    for (int i = 0; i < nauth; i++) {
-      byte cliAuthMethod = Util.readByte(clientSocket);
-      clientAuthMethods.add(cliAuthMethod);
+    for (byte cliAuthMethod : clientAuthMethods) {
       if ((authMethod = AuthMethod.Get(cliAuthMethod)) != null) {
         break;
       }
@@ -98,8 +94,6 @@ public class Socks5 implements SocksImpl {
     // int len = clientSocket.getInputStream().read(buf);
     // logger.debugf("Buf: %s, len: %d", Util.ToHexString(buf, ":"), len);
     // return ReplyCode.GENERAL_FAILURE;
-
-    Util.readByte(clientSocket); // TODO: why redundant byte here (because of NO_AUTH ???)
 
     byte versionNumber = Util.readByte(clientSocket);
     SocksVersion socksVersion = SocksVersion.Get(versionNumber);
@@ -133,7 +127,7 @@ public class Socks5 implements SocksImpl {
     destPortOctets = new byte[2];
     int len = clientSocket.getInputStream().read(destPortOctets);
     if (len != destPortOctets.length) {
-      logger.debugf("Failed to read destination port octets");
+      logger.debug("Failed to read destination port octets");
       return ReplyCode.GENERAL_FAILURE;
     }
 

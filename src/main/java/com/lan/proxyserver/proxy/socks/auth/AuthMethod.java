@@ -1,22 +1,11 @@
-package com.lan.proxyserver.proxy.socks;
+package com.lan.proxyserver.proxy.socks.auth;
 
-import com.lan.proxyserver.proxy.socks.auth.GSSAPI;
+import com.lan.proxyserver.proxy.socks.SocksVersion;
 import java.net.Socket;
-import org.ietf.jgss.GSSException;
 import org.jboss.logging.Logger;
 
 public enum AuthMethod {
   // Listed in priority
-  GSSAPI(
-      (byte) 1,
-      (clientSocket) -> {
-        try {
-          return new GSSAPI(clientSocket).doAuth();
-        } catch (GSSException e) {
-          LoggerHolder.logger.error(e.getMessage(), e);
-        }
-        return false;
-      }),
   NO_AUTH(
       (byte) 0,
       (clientSocket) -> {

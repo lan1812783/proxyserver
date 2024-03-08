@@ -14,7 +14,7 @@ public enum AddressType {
         byte[] address = new byte[4];
         int len = clientSocket.getInputStream().read(address);
         if (len != address.length) {
-          LoggerHolder.logger.debugf("Failed to read destination address octets");
+          LoggerHolder.logger.debug("Failed to read destination address octets");
           return null;
         }
         return address;
@@ -24,7 +24,7 @@ public enum AddressType {
   // IP_V6((byte) 4, (clientSocket) -> new byte[16]);
 
   private static class LoggerHolder {
-    private static final Logger logger = Logger.getLogger(Socks5.class);
+    private static final Logger logger = Logger.getLogger(AddressType.class);
   }
 
   private final byte type;
