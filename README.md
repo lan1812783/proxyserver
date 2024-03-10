@@ -66,6 +66,7 @@ Easily start your Reactive RESTful Web Services
 To use the GSSAPI authentication method, you will need:
 
 - [Key distribution center (KDC)](<#key-distribution-center-(kdc)>)
+- [Proxy service principle](#proxy-service-principle)
 - [JAAS login configuration file](#jaas-login-configuration-file)
 - [Keytab file](#keytab-file)
 
@@ -79,29 +80,24 @@ If the KDC runs locally, you can set up a record in `/etc/hosts` in order for th
 127.0.0.1	kerberos.mit.edu // use your KDC's domain here instead
 ```
 
-> I observed that using `curl` command will, by default, use principle `rcmd/0.0.0.0@ATHENA.MIT.EDU` (hence the example in [Keytab file](#keytab-file) section).
+### Proxy service principle
+
+On KDC server, create a principle for the proxy service by issuing the `sudo kadmin.local` command, assuming that the proxy service uses principle `rcmd/0.0.0.0@ATHENA.MIT.EDU`:
 
 ```bash
-$ curl --socks5 0.0.0.0:1080 --ipv4 https://jsonplaceholder.typicode.com/todos/1 -v
-*   Trying 0.0.0.0:1080...
-* TCP_NODELAY set
-* SOCKS5 communication to jsonplaceholder.typicode.com:443
-* GSS-API error: gss_init_sec_context failed:
-Unspecified GSS failure.  Minor code may provide more information.
-Server rcmd/0.0.0.0@ATHENA.MIT.EDU not found in Kerberos database
-* Failed to initial GSS-API token.
-* Unable to negotiate SOCKS5 GSS-API context.
-* Closing connection 0
-curl: (7) GSS-API error: gss_init_sec_context failed:
-Unspecified GSS failure.  Minor code may provide more information.
-Server rcmd/0.0.0.0@ATHENA.MIT.EDU not found in Kerberos database
+$ sudo kadmin.local
+Authenticating as principal root/admin@ATHENA.MIT.EDU with password.
+kadmin.local:  addprinc rcmd/0.0.0.0
+WARNING: no policy specified for rcmd/0.0.0.0@ATHENA.MIT.EDU; defaulting to no policy
+Enter password for principal "rcmd/0.0.0.0@ATHENA.MIT.EDU":
+Re-enter password for principal "rcmd/0.0.0.0@ATHENA.MIT.EDU":
+Principal "rcmd/0.0.0.0@ATHENA.MIT.EDU" created.
+kadmin.local:  quit
 ```
-
-> So I had to manually add that principle, though no need to configure ACL permissions (in `/etc/krb5kdc/kadm5.acl`) for that principle.
 
 ### JAAS login configuration file
 
-Create a file named `jaas.conf` with the following content:
+On the proxy server, create a file named `jaas.conf` with the following content:
 
 ```
 com.sun.security.jgss.accept {
@@ -126,7 +122,7 @@ quarkusDev {
 
 ### Keytab file
 
-First, we need to know what encryption algoritms are use by what principle:
+On the KDC server, obtain what encryption algoritms are use by what principle:
 
 ```bash
 $ klist -e
@@ -159,3 +155,62 @@ KVNO Principal
 ---- --------------------------------------------------------------------------
    1 rcmd/0.0.0.0@ATHENA.MIT.EDU
 ```
+
+Note that the keytab file is on KDC server, the KDC server technically does not need this file, but the proxy service does, so we must transfer this file to the proxy server (via `rsync` or `scp` command).
+
+### Troubleshot
+
+#### Server not found in Kerberos database
+
+After you've done installing the KDC and setting up default principle, try starting the proxy and connect to it using `curl` command with GSSAPI authentication method, you probably see the below error:
+
+```bash
+$ curl --socks5 0.0.0.0:1080 --ipv4 https://jsonplaceholder.typicode.com/todos/1 -v
+*   Trying 0.0.0.0:1080...
+* TCP_NODELAY set
+* SOCKS5 communication to jsonplaceholder.typicode.com:443
+* GSS-API error: gss_init_sec_context failed:
+Unspecified GSS failure.  Minor code may provide more information.
+Server rcmd/0.0.0.0@ATHENA.MIT.EDU not found in Kerberos database
+* Failed to initial GSS-API token.
+* Unable to negotiate SOCKS5 GSS-API context.
+* Closing connection 0
+curl: (7) GSS-API error: gss_init_sec_context failed:
+Unspecified GSS failure.  Minor code may provide more information.
+Server rcmd/0.0.0.0@ATHENA.MIT.EDU not found in Kerberos database
+```
+
+I observed that `curl` command will, by default, use server principle:
+
+- `rcmd/0.0.0.0@ATHENA.MIT.EDU` if supplied with `--socks5 0.0.0.0:<socks_port>`
+- `rcmd/localhost@ATHENA.MIT.EDU` if supplied with `--socks5 127.0.0.1:<socks_port>` or `--socks5 127.0.0.2:<socks_port>`, ..., or `--socks5 localhost:<socks_port>`
+
+I had to manually add one of those principles and create a keytab file associate with it (the keytab is created on the KDC server and later transfer to the proxy server), though not need to configure ACL permissions (in `/etc/krb5kdc/kadm5.acl`) any further.
+
+#### Ticket expired
+
+If client's ticket expires, we will see this message when trying to use the ticket:
+
+```bash
+$ curl --socks5 0.0.0.0:1080 --ipv4 https://jsonplaceholder.typicode.com/todos/1 -v
+*   Trying 0.0.0.0:1080...
+* TCP_NODELAY set
+* SOCKS5 communication to jsonplaceholder.typicode.com:443
+* GSS-API error: gss_init_sec_context failed:
+Unspecified GSS failure.  Minor code may provide more information.
+Ticket expired
+* Failed to initial GSS-API token.
+* Unable to negotiate SOCKS5 GSS-API context.
+* Closing connection 0
+curl: (7) GSS-API error: gss_init_sec_context failed:
+Unspecified GSS failure.  Minor code may provide more information.
+Ticket expired
+```
+
+To obtain a new ticket for default principle, simply use this command:
+
+```bash
+$ kinit
+```
+
+Check for ticket infomation using the `klist` command.

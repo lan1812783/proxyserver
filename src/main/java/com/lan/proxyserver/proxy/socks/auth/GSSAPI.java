@@ -86,13 +86,12 @@ public class GSSAPI {
         replyFailure();
         return false;
       }
-      subnegotiation();
+      return subnegotiation();
     } catch (IOException e) {
       logger.error(e.getMessage(), e);
       replyFailure();
-      return false;
     }
-    return true;
+    return false;
   }
 
   private boolean establishContext() throws IOException {
