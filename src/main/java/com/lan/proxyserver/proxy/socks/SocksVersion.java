@@ -28,7 +28,7 @@ public enum SocksVersion {
     this.socksImplFactory = socksImplFactory;
   }
 
-  public static SocksVersion Get(byte version) {
+  public static SocksVersion get(byte version) {
     for (SocksVersion sv : SocksVersion.values()) {
       if (sv.version == version) {
         return sv;

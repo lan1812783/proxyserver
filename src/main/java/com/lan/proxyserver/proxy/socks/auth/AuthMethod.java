@@ -2,14 +2,24 @@ package com.lan.proxyserver.proxy.socks.auth;
 
 import com.lan.proxyserver.proxy.socks.SocksVersion;
 import java.net.Socket;
+import org.ietf.jgss.GSSException;
 import org.jboss.logging.Logger;
 
 public enum AuthMethod {
-  // Listed in priority
   NO_AUTH(
       (byte) 0,
       (clientSocket) -> {
         return true;
+      }),
+  GSSAPI(
+      (byte) 1,
+      (clientSocket) -> {
+        try {
+          return new GSSAPI(clientSocket).doAuth();
+        } catch (GSSException e) {
+          LoggerHolder.logger.error(e.getMessage(), e);
+        }
+        return false;
       });
 
   private final byte authMethod;
@@ -31,7 +41,7 @@ public enum AuthMethod {
     this.authenticator = authenticator;
   }
 
-  public static AuthMethod Get(byte authMethod) {
+  public static AuthMethod get(byte authMethod) {
     for (AuthMethod m : AuthMethod.values()) {
       if (m.authMethod == authMethod) {
         return m;

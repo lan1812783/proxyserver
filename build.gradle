@@ -3,6 +3,18 @@ plugins {
     id 'io.quarkus'
 }
 
+quarkusDev {
+    jvmArgs = [
+        // https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/tutorials/KerberosReq.html
+        // '-Djava.security.krb5.conf=/etc/krb5.conf', // default fallback to /etc/krb5.conf on Linux
+        // '-Djava.security.krb5.realm=ATHENA.MIT.EDU', // default realm is indicated in krb5.conf file
+        // '-Djava.security.krb5.kdc=kerberos.mit.edu', // the KDC for default realm is indicated in krb5.conf file
+
+        // '-Djavax.security.auth.useSubjectCredsOnly=false', // https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/tutorials/BasicClientServer.html#useSub
+        // '-Djava.security.auth.login.config=<path/to/JAAS/login/configuration/file>' // https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/tutorials/BasicClientServer.html#TheLCF (don't know why relative file path doesn't work)
+    ]
+}
+
 repositories {
     mavenCentral()
     mavenLocal()

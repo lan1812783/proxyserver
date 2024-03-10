@@ -30,7 +30,7 @@ public class Util {
     }
     int res = 0;
     for (int i = 0; i < nbytes; i++) {
-      res |= (octets[i] & 0xFF) << (nbytes - 1 - i);
+      res |= (octets[i] & 0xFF) << ((nbytes - 1 - i) * Byte.SIZE);
     }
     return res;
   }
@@ -67,7 +67,7 @@ public class Util {
     if (octets == null || octets.length != 2) {
       return -1;
     }
-    return (octets[0] & 0xFF) << 8 | (octets[1] & 0xFF);
+    return (octets[0] & 0xFF) << Byte.SIZE | (octets[1] & 0xFF);
   }
 
   public static void byte2hex(byte b, StringBuffer buf) {

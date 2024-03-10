@@ -39,7 +39,7 @@ public enum AddressType {
     this.addressReader = addressReader;
   }
 
-  public static AddressType Get(byte type) {
+  public static AddressType get(byte type) {
     for (AddressType at : AddressType.values()) {
       if (at.type == type) {
         return at;
@@ -48,7 +48,7 @@ public enum AddressType {
     return null;
   }
 
-  public static AddressType Get(ServerSocket serverSocket) {
+  public static AddressType get(ServerSocket serverSocket) {
     InetAddress inetAddress = serverSocket.getInetAddress();
     if (inetAddress instanceof Inet4Address) {
       return AddressType.IP_V4;

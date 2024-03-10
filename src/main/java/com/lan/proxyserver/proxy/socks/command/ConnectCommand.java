@@ -7,10 +7,16 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.jboss.logging.Logger;
 
 public class ConnectCommand implements CommandImpl {
   private static final Logger logger = Logger.getLogger(ConnectCommand.class);
+  private static final ExecutorService pool = Executors.newCachedThreadPool();
 
   private final Socket clientSocket;
   private final Socket destSocket;
@@ -68,17 +74,39 @@ public class ConnectCommand implements CommandImpl {
 
   @Override
   public void execute() {
-    byte[] payload = new byte[4096];
+    AtomicBoolean fwStop = new AtomicBoolean(false);
+
+    // --- Backward direction ---
+    Future<?> bwFuture =
+        pool.submit(
+            () -> {
+              try {
+                while (!fwStop.get() && backward(new byte[4096])) {
+                  Thread.yield();
+                }
+              } catch (IOException e) {
+                logger.error(e.getMessage(), e);
+              }
+            });
+
+    // --- Forward direction ---
     try {
-      while (forwardAndBackward(payload)) {
+      while (forward(new byte[4096])) {
         Thread.yield();
       }
     } catch (IOException e) {
       logger.error(e.getMessage(), e);
     }
+
+    fwStop.set(true);
+    try {
+      bwFuture.get(); // wait for backward direction to complete
+    } catch (InterruptedException | ExecutionException e) {
+      logger.error(e.getMessage(), e);
+    }
   }
 
-  private boolean forwardAndBackward(byte[] payload) throws IOException {
+  private boolean forward(byte[] payload) throws IOException {
     int len = clientSocket.getInputStream().read(payload);
     if (len < 0) {
       logger.debugf("Read %d byte(s) from client", len);
@@ -94,7 +122,11 @@ public class ConnectCommand implements CommandImpl {
         "Write %d byte(s) to destination, payload: %s",
         len, Util.toHexString(Arrays.copyOf(payload, len), ":"));
 
-    len = destSocket.getInputStream().read(payload);
+    return true;
+  }
+
+  private boolean backward(byte[] payload) throws IOException {
+    int len = destSocket.getInputStream().read(payload);
     if (len < 0) {
       logger.debugf("Read %d byte(s) from destination", len);
       return false;

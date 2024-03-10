@@ -5,8 +5,8 @@ import java.net.Socket;
 public enum Command {
   CONNECT(
       (byte) 1,
-      (clientSocket, destAddressOctets, destPortOctets) -> ConnectCommand.build(clientSocket, destAddressOctets,
-          destPortOctets));
+      (clientSocket, destAddressOctets, destPortOctets) ->
+          ConnectCommand.build(clientSocket, destAddressOctets, destPortOctets));
   // BIND((byte) 2),
   // UDP_ASSOCIATE((byte) 3);
 
@@ -23,7 +23,7 @@ public enum Command {
     this.commandImplBuilder = commandImplBuilder;
   }
 
-  public static Command Get(byte commandCode) {
+  public static Command get(byte commandCode) {
     for (Command c : Command.values()) {
       if (c.commandCode == commandCode) {
         return c;

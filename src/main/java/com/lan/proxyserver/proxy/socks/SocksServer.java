@@ -104,18 +104,6 @@ public class SocksServer implements Runnable {
       } catch (IOException e) {
         logger.error(e.getMessage(), e);
       }
-    }
-
-    public void runImpl() throws IOException {
-      SocksServerStat.currentConnections.incrementAndGet();
-
-      byte versionNumber = Util.readByte(clientSocket);
-      SocksVersion socksVersion = SocksVersion.Get(versionNumber);
-      if (socksVersion == null) {
-        logger.debugf("Unsupported socks version %02x", versionNumber);
-        return;
-      }
-      socksVersion.perform(serverSocket, clientSocket);
 
       try {
         clientSocket.close();
@@ -125,6 +113,18 @@ public class SocksServer implements Runnable {
       } catch (IOException e) {
         logger.debug(e.getMessage(), e);
       }
+    }
+
+    public void runImpl() throws IOException {
+      SocksServerStat.currentConnections.incrementAndGet();
+
+      byte versionNumber = Util.readByte(clientSocket);
+      SocksVersion socksVersion = SocksVersion.get(versionNumber);
+      if (socksVersion == null) {
+        logger.debugf("Unsupported socks version %02x", versionNumber);
+        return;
+      }
+      socksVersion.perform(serverSocket, clientSocket);
     }
   }
 }

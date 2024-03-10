@@ -1,5 +1,6 @@
 package com.lan.proxyserver.proxy.socks;
 
+import com.lan.proxyserver.proxy.socks.auth.AuthMethod;
 import com.lan.proxyserver.proxy.socks.command.Command;
 import com.lan.proxyserver.proxy.socks.command.CommandConstructionResult;
 import com.lan.proxyserver.proxy.socks.command.CommandImpl;
@@ -12,7 +13,7 @@ import org.jboss.logging.Logger;
 public class Socks5 implements SocksImpl {
   private static final byte RESERVED_BYTE = 0;
   private static final Logger logger = Logger.getLogger(Socks5.class);
-  private static final byte[] NoSuppoertedMethodsResponse = {
+  private static final byte[] noSuppoertedMethodsResponse = {
     SocksVersion.SOCKS5.get(), (byte) 0xFF
   };
 
@@ -26,7 +27,7 @@ public class Socks5 implements SocksImpl {
   private byte[] destPortOctets;
 
   Socks5(ServerSocket serverSocket, Socket clientSocket) {
-    serverAddressType = AddressType.Get(serverSocket);
+    serverAddressType = AddressType.get(serverSocket);
     if (serverAddressType == null) {
       throw new UnsupportedOperationException("Unsupported server address version" + serverSocket);
     }
@@ -34,7 +35,7 @@ public class Socks5 implements SocksImpl {
 
     int serverPort = serverSocket.getLocalPort();
     serverPortOctets = new byte[2];
-    serverPortOctets[0] = (byte) ((serverPort & 0xFF00) >> 8);
+    serverPortOctets[0] = (byte) ((serverPort & 0xFF00) >> Byte.SIZE);
     serverPortOctets[1] = (byte) (serverPort & 0xFF);
 
     this.clientSocket = clientSocket;
@@ -44,7 +45,7 @@ public class Socks5 implements SocksImpl {
   public boolean perform() throws IOException {
     if (!doAuth()) {
       logger.debug("Authentication failed");
-      clientSocket.getOutputStream().write(NoSuppoertedMethodsResponse);
+      clientSocket.getOutputStream().write(noSuppoertedMethodsResponse);
       return false;
     }
 
@@ -71,7 +72,7 @@ public class Socks5 implements SocksImpl {
     byte[] clientAuthMethods = Util.readExactlyNBytes(clientSocket, nmethods);
     AuthMethod authMethod = null;
     for (byte cliAuthMethod : clientAuthMethods) {
-      if ((authMethod = AuthMethod.Get(cliAuthMethod)) != null) {
+      if ((authMethod = AuthMethod.get(cliAuthMethod)) != null) {
         break;
       }
     }
@@ -90,20 +91,15 @@ public class Socks5 implements SocksImpl {
   }
 
   public ReplyCode processRequest() throws IOException {
-    // byte[] buf = new byte[128];
-    // int len = clientSocket.getInputStream().read(buf);
-    // logger.debugf("Buf: %s, len: %d", Util.ToHexString(buf, ":"), len);
-    // return ReplyCode.GENERAL_FAILURE;
-
     byte versionNumber = Util.readByte(clientSocket);
-    SocksVersion socksVersion = SocksVersion.Get(versionNumber);
+    SocksVersion socksVersion = SocksVersion.get(versionNumber);
     if (socksVersion == null) {
       logger.debugf("Unsupported socks version %02x", versionNumber);
       return ReplyCode.GENERAL_FAILURE;
     }
 
     byte commandCode = Util.readByte(clientSocket);
-    command = Command.Get(commandCode);
+    command = Command.get(commandCode);
     if (command == null) {
       logger.debugf("Unsupported command code %02x", commandCode);
       return ReplyCode.UNSUPPORTED_COMMAND;
@@ -117,7 +113,7 @@ public class Socks5 implements SocksImpl {
     }
 
     byte addrType = Util.readByte(clientSocket);
-    destAddressType = AddressType.Get(addrType);
+    destAddressType = AddressType.get(addrType);
     if (destAddressType == null) {
       logger.debugf("Unsupported address type %02x", addrType);
       return ReplyCode.UNSUPPORTED_ADDRESS_TYPE;
@@ -153,12 +149,12 @@ public class Socks5 implements SocksImpl {
 
     try {
       clientSocket.getOutputStream().write(response);
-      logger.infof("Server replies %s to client", replyCode);
     } catch (IOException e) {
       logger.error(e.getMessage(), e);
       return false;
     }
 
+    logger.infof("Server replies %s to client", replyCode);
     return true;
   }
 }
