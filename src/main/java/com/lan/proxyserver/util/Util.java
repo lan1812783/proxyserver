@@ -98,7 +98,8 @@ public class Util {
 
   public static boolean shutdownAndAwaitTermination(
       ExecutorService threadPool, long timeout, TimeUnit unit) {
-    threadPool.shutdown();
+    threadPool.shutdown(); // prevent new tasks from being submitted
+    threadPool.shutdownNow(); // interrupt running tasks
     try {
       if (!threadPool.awaitTermination(timeout, unit)) {
         threadPool.shutdownNow();

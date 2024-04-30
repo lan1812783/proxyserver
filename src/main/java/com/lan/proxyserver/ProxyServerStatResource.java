@@ -1,5 +1,6 @@
 package com.lan.proxyserver;
 
+import com.lan.proxyserver.lifecycle.ProxyServerLifecycleBean;
 import com.lan.proxyserver.proxy.socks.SocksServerStat;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
@@ -17,7 +18,9 @@ public class ProxyServerStatResource {
   @GET
   @Produces(MediaType.TEXT_HTML)
   public TemplateInstance stat() {
-    return stat.data("totolAcceptedConnections", SocksServerStat.totalAcceptedConnections.get())
-        .data("currentConnections", SocksServerStat.currentConnections.get());
+    SocksServerStat socksServerStat = ProxyServerLifecycleBean.getProxyServerStat();
+
+    return stat.data("totolAcceptedConnections", socksServerStat.getTotalAcceptedConnections())
+        .data("currentConnections", socksServerStat.getCurrentConnections());
   }
 }

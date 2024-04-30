@@ -3,7 +3,7 @@ plugins {
     id 'io.quarkus'
 }
 
-quarkusDev {
+ext {
     jvmArgs = [
         // https://docs.oracle.com/javase/8/docs/technotes/guides/security/jgss/tutorials/KerberosReq.html
         // '-Djava.security.krb5.conf=/etc/krb5.conf', // default fallback to /etc/krb5.conf on Linux
@@ -15,6 +15,14 @@ quarkusDev {
     ]
 }
 
+quarkusDev {
+    jvmArgs = jvmArgs // cannot apply to quarkusRun, why?
+}
+
+quarkusTest {
+    jvmArgs = jvmArgs
+}
+
 repositories {
     mavenCentral()
     mavenLocal()
@@ -22,9 +30,10 @@ repositories {
 
 dependencies {
     implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation 'io.quarkus:quarkus-rest'
+    implementation 'io.quarkus:quarkus-rest-jackson'
     implementation 'io.quarkus:quarkus-arc'
-    implementation 'io.quarkus:quarkus-resteasy-reactive'
-    implementation 'io.quarkus:quarkus-resteasy-reactive-qute'
+    implementation 'io.quarkus:quarkus-rest-qute'
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.rest-assured:rest-assured'
 }

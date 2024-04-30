@@ -8,14 +8,17 @@ import com.lan.proxyserver.util.Util;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
 import org.jboss.logging.Logger;
 
 public class Socks5 implements SocksImpl {
   private static final byte RESERVED_BYTE = 0;
   private static final Logger logger = Logger.getLogger(Socks5.class);
   private static final byte[] noSuppoertedMethodsResponse = {
-    SocksVersion.SOCKS5.get(), (byte) 0xFF
+      SocksVersion.SOCKS5.get(), (byte) 0xFF
   };
+
+  private final ExecutorService pool;
 
   private final AddressType serverAddressType;
   private final byte[] serverAddressOctets;
@@ -26,7 +29,7 @@ public class Socks5 implements SocksImpl {
   private byte[] destAddressOctets;
   private byte[] destPortOctets;
 
-  Socks5(ServerSocket serverSocket, Socket clientSocket) {
+  Socks5(ServerSocket serverSocket, Socket clientSocket, ExecutorService pool) {
     serverAddressType = AddressType.get(serverSocket);
     if (serverAddressType == null) {
       throw new UnsupportedOperationException("Unsupported server address version" + serverSocket);
@@ -39,6 +42,7 @@ public class Socks5 implements SocksImpl {
     serverPortOctets[1] = (byte) (serverPort & 0xFF);
 
     this.clientSocket = clientSocket;
+    this.pool = pool;
   }
 
   @Override
@@ -56,7 +60,7 @@ public class Socks5 implements SocksImpl {
       return false;
     }
 
-    CommandConstructionResult res = command.build(clientSocket, destAddressOctets, destPortOctets);
+    CommandConstructionResult res = command.build(clientSocket, destAddressOctets, destPortOctets, pool);
     try (CommandImpl commandImpl = res.commandImpl) {
       if (!reply(res.replyCode)) {
         return false;

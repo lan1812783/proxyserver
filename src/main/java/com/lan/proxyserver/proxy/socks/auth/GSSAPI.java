@@ -17,6 +17,7 @@ public class GSSAPI {
   private static final byte[] securityContextFailureResponse = {
     PROTOCOL_VERSION_NUMBER, (byte) 0xFF
   };
+  public static final String cfgStrPrefix = "proxy_server.socks.5.auth.method.gssapi";
 
   private final Socket clientSocket;
   private final GSSContext gssContext;
@@ -33,6 +34,15 @@ public class GSSAPI {
 
     public byte get() {
       return type;
+    }
+
+    public static MessageType get(byte type) {
+      for (MessageType mt : MessageType.values()) {
+        if (mt.type == type) {
+          return mt;
+        }
+      }
+      return null;
     }
   }
 
@@ -89,19 +99,21 @@ public class GSSAPI {
       return subnegotiation();
     } catch (IOException e) {
       logger.error(e.getMessage(), e);
-      replyFailure();
     }
+    replyFailure();
     return false;
   }
 
   private boolean establishContext() throws IOException {
-    byte versionNumer = Util.readByte(clientSocket);
-    if (versionNumer != PROTOCOL_VERSION_NUMBER) {
+    byte versionNumber = Util.readByte(clientSocket);
+    if (versionNumber != PROTOCOL_VERSION_NUMBER) {
+      logger.debugf("Unsupported protocol version %02x", versionNumber);
       return false;
     }
 
     byte messageType = Util.readByte(clientSocket);
     if (messageType != MessageType.AUTHENTICATION.get()) {
+      logger.debugf("Wrong message type %s", MessageType.get(messageType));
       return false;
     }
 
@@ -151,13 +163,15 @@ public class GSSAPI {
   }
 
   private boolean subnegotiation() throws IOException {
-    byte versionNumer = Util.readByte(clientSocket);
-    if (versionNumer != PROTOCOL_VERSION_NUMBER) {
+    byte versionNumber = Util.readByte(clientSocket);
+    if (versionNumber != PROTOCOL_VERSION_NUMBER) {
+      logger.debugf("Unsupported protocol version %02x", versionNumber);
       return false;
     }
 
     byte messageType = Util.readByte(clientSocket);
     if (messageType != MessageType.NEGOTIATION.get()) {
+      logger.debugf("Wrong message type %s", MessageType.get(messageType));
       return false;
     }
 

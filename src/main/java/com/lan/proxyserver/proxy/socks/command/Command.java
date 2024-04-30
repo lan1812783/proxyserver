@@ -1,12 +1,13 @@
 package com.lan.proxyserver.proxy.socks.command;
 
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
 
 public enum Command {
   CONNECT(
       (byte) 1,
-      (clientSocket, destAddressOctets, destPortOctets) ->
-          ConnectCommand.build(clientSocket, destAddressOctets, destPortOctets));
+      (clientSocket, destAddressOctets, destPortOctets, pool) -> ConnectCommand.build(clientSocket, destAddressOctets,
+          destPortOctets, pool));
   // BIND((byte) 2),
   // UDP_ASSOCIATE((byte) 3);
 
@@ -15,7 +16,7 @@ public enum Command {
 
   private static interface CommandImplBuilder {
     public CommandConstructionResult build(
-        Socket clientSocket, byte[] destAddressOctets, byte[] destPortOctets);
+        Socket clientSocket, byte[] destAddressOctets, byte[] destPortOctets, ExecutorService pool);
   }
 
   Command(byte commandCode, CommandImplBuilder commandImplBuilder) {
@@ -33,7 +34,7 @@ public enum Command {
   }
 
   public CommandConstructionResult build(
-      Socket clientSocket, byte[] destAddressOctets, byte[] destPortOctets) {
-    return commandImplBuilder.build(clientSocket, destAddressOctets, destPortOctets);
+      Socket clientSocket, byte[] destAddressOctets, byte[] destPortOctets, ExecutorService pool) {
+    return commandImplBuilder.build(clientSocket, destAddressOctets, destPortOctets, pool);
   }
 }

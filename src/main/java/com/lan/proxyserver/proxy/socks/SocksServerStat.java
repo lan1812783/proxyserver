@@ -1,8 +1,39 @@
 package com.lan.proxyserver.proxy.socks;
 
+import com.lan.proxyserver.util.NoOpExecutorService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class SocksServerStat {
-  public static final AtomicLong totalAcceptedConnections = new AtomicLong();
-  public static final AtomicLong currentConnections = new AtomicLong();
+  private final ExecutorService pool;
+  private final AtomicLong totalAcceptedConnections;
+  private final AtomicLong currentConnections;
+
+  public static final SocksServerStat EmptyStat = new SocksServerStat(new NoOpExecutorService());
+
+  SocksServerStat(ExecutorService pool) {
+    this.pool = pool;
+    totalAcceptedConnections = new AtomicLong();
+    currentConnections = new AtomicLong();
+  }
+
+  void incTotalAcceptedConnections() {
+    totalAcceptedConnections.incrementAndGet();
+  }
+
+  public long getTotalAcceptedConnections() {
+    return totalAcceptedConnections.get();
+  }
+
+  void incCurrentConnections() {
+    currentConnections.incrementAndGet();
+  }
+
+  void decCurrentConnections() {
+    currentConnections.decrementAndGet();
+  }
+
+  public long getCurrentConnections() {
+    return currentConnections.get();
+  }
 }

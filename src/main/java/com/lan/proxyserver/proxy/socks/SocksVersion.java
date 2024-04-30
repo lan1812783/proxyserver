@@ -3,6 +3,7 @@ package com.lan.proxyserver.proxy.socks;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
 import org.jboss.logging.Logger;
 
 public enum SocksVersion {
@@ -12,7 +13,8 @@ public enum SocksVersion {
   // () -> {
   // return false;
   // }),
-  SOCKS5((byte) 5, (serverSocket, clientSocket) -> new Socks5(serverSocket, clientSocket));
+  SOCKS5(
+      (byte) 5, (serverSocket, clientSocket, pool) -> new Socks5(serverSocket, clientSocket, pool));
 
   private static final Logger logger = Logger.getLogger(SocksVersion.class);
 
@@ -20,7 +22,7 @@ public enum SocksVersion {
   private final SocksImplFactory socksImplFactory;
 
   private interface SocksImplFactory {
-    public SocksImpl newImpl(ServerSocket serverSocket, Socket clientSocket);
+    public SocksImpl newImpl(ServerSocket serverSocket, Socket clientSocket, ExecutorService pool);
   }
 
   SocksVersion(byte version, SocksImplFactory socksImplFactory) {
@@ -41,12 +43,12 @@ public enum SocksVersion {
     return version;
   }
 
-  public void perform(ServerSocket serverSocket, Socket clientSocket) {
+  public void perform(ServerSocket serverSocket, Socket clientSocket, ExecutorService pool) {
     boolean success = false;
 
     SocksImpl socksImpl = null;
     try {
-      socksImpl = socksImplFactory.newImpl(serverSocket, clientSocket);
+      socksImpl = socksImplFactory.newImpl(serverSocket, clientSocket, pool);
     } catch (Exception e) {
       logger.error(e.getMessage(), e);
     }

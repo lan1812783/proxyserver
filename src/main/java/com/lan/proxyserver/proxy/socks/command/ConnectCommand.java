@@ -6,28 +6,27 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jboss.logging.Logger;
 
 public class ConnectCommand implements CommandImpl {
   private static final Logger logger = Logger.getLogger(ConnectCommand.class);
-  private static final ExecutorService pool = Executors.newCachedThreadPool();
 
   private final Socket clientSocket;
   private final Socket destSocket;
+  private final ExecutorService pool;
 
-  private ConnectCommand(Socket clientSocket, Socket destSocket) {
+  private ConnectCommand(Socket clientSocket, Socket destSocket, ExecutorService pool) {
     this.clientSocket = clientSocket;
     this.destSocket = destSocket;
+    this.pool = pool;
   }
 
   public static CommandConstructionResult build(
-      Socket clientSocket, byte[] destAddressOctets, byte[] destPortOctets) {
+      Socket clientSocket, byte[] destAddressOctets, byte[] destPortOctets, ExecutorService pool) {
     InetAddress destInetAddress = Util.getV4InetAdress(destAddressOctets);
     int destPort = Util.getPort(destPortOctets);
     if (destInetAddress == null || destPort < 0) {
@@ -46,7 +45,10 @@ public class ConnectCommand implements CommandImpl {
     try {
       destSocket = new Socket(destInetAddress, destPort);
     } catch (SocketException e) {
-      logger.error(e.getMessage(), e);
+      logger.error(
+          String.format(
+              "Destination socket at %s:%d set up unsuccessfully", destInetAddress, destPort),
+          e);
       String msg = e.getMessage();
       return msg != null && msg.startsWith("Network is unreachable")
           ? new CommandConstructionResult(ReplyCode.NETWORK_UNREACHABLE)
@@ -57,7 +59,11 @@ public class ConnectCommand implements CommandImpl {
     }
 
     try {
-      destSocket.setSoTimeout(5000);
+      // Ref:
+      // https://github.com/apache/thrift/blob/master/lib/java/src/main/java/org/apache/thrift/transport/TSocket.java#L150
+      destSocket.setSoLinger(false, 0);
+      destSocket.setTcpNoDelay(true); // turn Nagle's algorithm off
+      destSocket.setKeepAlive(true);
     } catch (SocketException e) {
       try {
         destSocket.close();
@@ -69,41 +75,48 @@ public class ConnectCommand implements CommandImpl {
     }
 
     return new CommandConstructionResult(
-        ReplyCode.SUCCESS, new ConnectCommand(clientSocket, destSocket));
+        ReplyCode.SUCCESS, new ConnectCommand(clientSocket, destSocket, pool));
   }
 
   @Override
   public void execute() {
-    AtomicBoolean fwStop = new AtomicBoolean(false);
+    // Do not let backward direction log socket error when forward direction stops,
+    // because forward direction will close destination socket afterward
+    final AtomicBoolean fwStop = new AtomicBoolean(false);
 
     // --- Backward direction ---
-    Future<?> bwFuture =
-        pool.submit(
-            () -> {
-              try {
-                while (!fwStop.get() && backward(new byte[4096])) {
-                  Thread.yield();
-                }
-              } catch (IOException e) {
-                logger.error(e.getMessage(), e);
-              }
-            });
+    pool.submit(
+        () -> {
+          try {
+            while (backward(new byte[4096])) {
+              Thread.yield();
+            }
+          } catch (IOException e) {
+            if (!Thread.currentThread().isInterrupted() && !fwStop.get()) {
+              logger.error(e.getMessage(), e);
+            }
+          }
+        });
 
     // --- Forward direction ---
     try {
-      while (forward(new byte[4096])) {
+      while (true) {
+        try {
+          if (!forward(new byte[4096])) {
+            break;
+          }
+        } catch (SocketTimeoutException e) {
+          if (Thread.currentThread().isInterrupted()) {
+            break;
+          }
+        }
+
         Thread.yield();
       }
     } catch (IOException e) {
       logger.error(e.getMessage(), e);
     }
-
     fwStop.set(true);
-    try {
-      bwFuture.get(); // wait for backward direction to complete
-    } catch (InterruptedException | ExecutionException e) {
-      logger.error(e.getMessage(), e);
-    }
   }
 
   private boolean forward(byte[] payload) throws IOException {

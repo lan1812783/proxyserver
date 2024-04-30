@@ -1,5 +1,6 @@
 package com.lan.proxyserver.proxy.socks.auth;
 
+import com.lan.proxyserver.config.Configer;
 import com.lan.proxyserver.proxy.socks.SocksVersion;
 import java.net.Socket;
 import org.ietf.jgss.GSSException;
@@ -10,7 +11,8 @@ public enum AuthMethod {
       (byte) 0,
       (clientSocket) -> {
         return true;
-      }),
+      },
+      Configer.getBool(false, "proxy_server.socks.5.auth.method.no_auth.enable")),
   GSSAPI(
       (byte) 1,
       (clientSocket) -> {
@@ -20,7 +22,14 @@ public enum AuthMethod {
           LoggerHolder.logger.error(e.getMessage(), e);
         }
         return false;
-      });
+      },
+      Configer.getBool(false, com.lan.proxyserver.proxy.socks.auth.GSSAPI.cfgStrPrefix, "enable")),
+  USR_PWD(
+      (byte) 2,
+      (clientSocket) -> {
+        return new UsernamePassword(clientSocket).doAuth();
+      },
+      Configer.getBool(false, UsernamePassword.cfgStrPrefix, "enable"));
 
   private final byte authMethod;
   private final byte[] response;
@@ -34,16 +43,18 @@ public enum AuthMethod {
   }
 
   private final Authenticator authenticator;
+  private final boolean enable;
 
-  AuthMethod(byte authMethod, Authenticator authenticator) {
+  AuthMethod(byte authMethod, Authenticator authenticator, boolean enable) {
     this.authMethod = authMethod;
     response = new byte[] {SocksVersion.SOCKS5.get(), authMethod};
     this.authenticator = authenticator;
+    this.enable = enable;
   }
 
   public static AuthMethod get(byte authMethod) {
     for (AuthMethod m : AuthMethod.values()) {
-      if (m.authMethod == authMethod) {
+      if (m.authMethod == authMethod && m.enable) {
         return m;
       }
     }
