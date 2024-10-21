@@ -20,7 +20,9 @@ public class ProxyServerStatResource {
   public TemplateInstance stat() {
     SocksServerStat socksServerStat = ProxyServerLifecycleBean.getProxyServerStat();
 
-    return stat.data("totolAcceptedConnections", socksServerStat.getTotalAcceptedConnections())
-        .data("currentConnections", socksServerStat.getCurrentConnections());
+    return stat.data(
+            "totolAcceptedConnections",
+            String.format("%,d", socksServerStat.getTotalAcceptedConnections()))
+        .data("currentConnections", String.format("%,d", socksServerStat.getCurrentConnections()));
   }
 }
